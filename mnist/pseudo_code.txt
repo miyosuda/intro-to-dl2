@@ -1,0 +1,82 @@
+public class DigitDetector {
+    // 784x10のweight値
+    private float[][] weightW = new float[784][10];
+    // 10個のbias値
+    private float[] biasB = new float[10];
+
+    // 上記の"weightB"と"biasB"が学習により求まった状態だとする.
+
+    /**
+     * 手書き文字画像から文字認識を行って、数字を推定する.
+     *
+     * @param pixels 28x28(=784個)のピクセル値, 0.0~1.0の値
+     * @return 0〜9の認識結果
+     */
+    private int detectDigit(float[] input) {
+        // 10個の出力値を準備
+        float[] output = new float[10];
+
+        // input と weightW の掛け算を行う
+        for (int j = 0; j < 784; ++j) {
+            for (int i = 0; i < 10; ++i) {
+                output[i] += input[j] * weightW[j][i];
+            }
+        }
+
+        // それに biasB を足す
+        for (int i = 0; i < 10; ++i) {
+            output[i] += biasB[i];
+        }
+
+        // SoftMax関数を通して合計を1にしておく
+        float[] newOutput = softMax(output);
+
+        // 最大の値のindexを探す (0~9)
+        int maxIndex = findMaxIndex(newOutput);
+        return maxIndex;
+    }
+
+    /**
+     * 各値が0.0~1.0の値で、合計が1.0になる様に調整するSoftMax関数.
+     */
+    private float[] softMax(float[] values) {
+        // 各値のexp値
+        float[] expValues = new float[values.length];
+
+        // 各値のexp値の合計
+        float expSum = 0.0f;
+        for (int i = 0; i < values.length; ++i) {
+            // 各値のexp値を出す
+            float exp = (float) Math.exp(values[i]);
+            expValues[i] = exp;
+            // 合計値を加算
+            expSum += exp;
+        }
+
+        // 合計値で割って、全部のexp値の合計が1になる様にする
+        for (int i = 0; i < values.length; ++i) {
+            expValues[i] /= expSum;
+        }
+
+        // 結果はそれぞれ0.0〜1.0の間の値
+        return expValues;
+    }
+
+    /**
+     * @return 一番最大の値のindexを得る.
+     */
+    private int findMaxIndex(float values[]) {
+        float maxValue = Float.MIN_VALUE;
+        int maxIndex = -1;
+
+        for (int i = 0; i < values.length; ++i) {
+            float value = values[i];
+            if (value > maxValue) {
+                maxValue = value;
+                maxIndex = i;
+            }
+        }
+
+        return maxIndex;
+    }
+}
