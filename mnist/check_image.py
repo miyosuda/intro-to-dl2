@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+# ~/tensorflow/bin/frameworkpython check_image.py で実行
+
 import matplotlib.pyplot as plt
 
 # MNISTデータロード用のクラスをimport

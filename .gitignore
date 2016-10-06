@@ -1,3 +1,7 @@
 mnist/*.png
 mnist/tmp/*
 word2vec/*.png
+word2vec/rap.txt
+word2vec/rap.txt.zip
+word2vec/rap_ja.txt
+word2vec/rap_ja.txt.zip

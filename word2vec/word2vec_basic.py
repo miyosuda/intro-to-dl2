@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+
+# ~/tensorflow/bin/frameworkpython.py で実行
+
 from __future__ import absolute_import
 from __future__ import print_function
 
@@ -19,11 +22,15 @@ import tensorflow as tf
 
 # Step 1: データのロード
 
+file_name = 'wonderland.txt'
+#file_name = 'rap.txt'
+#file_name = 'rap_ja.txt'
+
 # Read the data into a string.
 def read_data():
-  f = codecs.open('wonderland.txt', 'r', 'utf-8')
+  f = codecs.open(file_name, 'r', 'utf-8')
   # スペースで単語ごとにわける
-  # TODO: 小文字化, ピリオドなどの除去
+  # TODO: 本当は小文字化, ピリオドなどの除去をしないといけない
   data = f.read().split()
   f.close()  
   return data
@@ -39,16 +46,19 @@ print(words[4]) #...
 
 # 各単語を出現頻度ごとにソートし、vocabulary_size 以上の低頻度後をすべて UNK というワードとして
 # まとめてしまう.
-#vocabulary_size = 50000
-#vocabulary_size = 30000
-vocabulary_size = 5000
+#vocabulary_size = 30000 # 
+vocabulary_size = 5000 # wonderland.txtの場合
 
 
 # Step 2: 辞書を構築し低頻度語を'UNK'に置き換え
 
 def build_dataset(words):
   count = [['UNK', -1]]
-  count.extend(collections.Counter(words).most_common(vocabulary_size - 1))
+  
+  counter = collections.Counter(words)
+  print( ">>> original vocabrary size =", len(counter.most_common() ) )
+  count.extend(counter.most_common(vocabulary_size - 1))
+  
   dictionary = dict()
   for word, _ in count:
     dictionary[word] = len(dictionary)
