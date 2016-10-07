@@ -26,27 +26,21 @@ file_name = 'wonderland.txt'
 #file_name = 'rap.txt'
 #file_name = 'rap_ja.txt'
 
-# Read the data into a string.
+# 入力データをスペース区切りで単語配列にする
 def read_data():
   f = codecs.open(file_name, 'r', 'utf-8')
-  # スペースで単語ごとにわける
-  # TODO: 本当は小文字化, ピリオドなどの除去をしないといけない
-  data = f.read().split()
-  f.close()  
+  data = f.read().split() # スペースで単語ごとにわける
+  # TODO: 本当は小文字化, ピリオドなどの除去をしないといけない  
+  f.close()
   return data
 
 words = read_data()
 
 print('Data size', len(words))
-print(words[0]) #...
-print(words[1]) #...
-print(words[2]) #...
-print(words[3]) #...
-print(words[4]) #...
 
 # 各単語を出現頻度ごとにソートし、vocabulary_size 以上の低頻度後をすべて UNK というワードとして
 # まとめてしまう.
-#vocabulary_size = 30000 # 
+#vocabulary_size = 30000 # rap_ja.txtの場合
 vocabulary_size = 5000 # wonderland.txtの場合
 
 
@@ -113,7 +107,7 @@ def generate_batch(batch_size, num_skips, skip_window):
     buffer.append(data[data_index])
     data_index = (data_index + 1) % len(data)
 
-  # buffer には3つのワードのindexが入っている
+  # buffer には3つの連続するワードのindexが入った状態
 
   # (中央の)1単語のにつき、前後の各ワードをtargetとする.
   # なので1バッチが128個処理するとすると、64ワードのそれらの前後ワードをとってくることになる.
@@ -126,9 +120,10 @@ def generate_batch(batch_size, num_skips, skip_window):
         target = random.randint(0, span - 1) # 0,1,2
       
       targets_to_avoid.append(target)
-      batch[i * num_skips + j] = buffer[skip_window]
-      labels[i * num_skips + j, 0] = buffer[target]
-    buffer.append(data[data_index])
+      batch[ i * num_skips + j   ] = buffer[skip_window] # 中央の入力ワード
+      labels[i * num_skips + j, 0] = buffer[target]      # 前後のターゲットワード
+      
+    buffer.append(data[data_index]) # buffer内容を次の3ワードに更新
     data_index = (data_index + 1) % len(data)
     
   return batch, labels
@@ -142,11 +137,12 @@ for i in range(8):
 
 # Step 4: skip-gramモデルを生成して学習
 
-batch_size     = 128
+batch_size     = 128  # バッチ処理のサイズ
 embedding_size = 128  # embeddingベクトルの次元数
 skip_window    = 1    # 左右何個の単語まで考慮に入れるか
 num_skips      = 2    # How many times to reuse an input to generate a label.
 
+# 単語類似度検証用のデータ
 # We pick a random validation set to sample nearest neighbors. Here we limit the
 # validation samples to the words that have a low numeric ID, which by
 # construction are also the most frequent.
@@ -154,17 +150,18 @@ valid_size     = 16   # Random set of words to evaluate similarity on.
 valid_window   = 100  # Only pick dev samples in the head of the distribution.
 valid_examples = np.array(random.sample(range(valid_window), valid_size))
 
-# softmaxを高速化する為のnegative samplingのサンプリング数
-num_sampled    = 64   # Number of negative examples to sample.
+# 類似度検査用のID=0~100のあいだの単語を16個選んでおく (IDが低いので出現頻度が高い単語)
+
+num_sampled    = 64   # softmaxを高速化する為のnegative samplingのサンプリング数
 
 graph = tf.Graph()
 
 with graph.as_default():
 
   # Input data.
-  train_inputs = tf.placeholder(tf.int32, shape=[batch_size])
-  train_labels = tf.placeholder(tf.int32, shape=[batch_size, 1])
-  valid_dataset = tf.constant(valid_examples, dtype=tf.int32)
+  train_inputs = tf.placeholder(tf.int32, shape=[batch_size])      # 単語ID入力
+  train_labels = tf.placeholder(tf.int32, shape=[batch_size, 1])   # ターゲット単語入力
+  valid_dataset = tf.constant(valid_examples, dtype=tf.int32)      # 類似度検証入力ワード入力
 
   # Ops and variables pinned to the CPU because of missing GPU implementation
   with tf.device('/cpu:0'):
@@ -175,7 +172,7 @@ with graph.as_default():
     # embed = (128, 128) = (batch, embedding_size)
 
     # Construct the variables for the NCE loss
-    # (50000, 128)のweight と(50000)のbias
+    # (30000, 128)のweight と(30000)のbias
     nce_weights = tf.Variable(
         tf.truncated_normal([vocabulary_size, embedding_size],
                             stddev=1.0 / math.sqrt(embedding_size)))
@@ -192,15 +189,16 @@ with graph.as_default():
   optimizer = tf.train.GradientDescentOptimizer(1.0).minimize(loss)
 
   # Compute the cosine similarity between minibatch examples and all embeddings.
+  # コサイン類似度を計算
   norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
-  normalized_embeddings = embeddings / norm
+  normalized_embeddings = embeddings / norm # 各単語ベクトルを長さで割って単位ベクトルに  
   valid_embeddings = tf.nn.embedding_lookup(normalized_embeddings, valid_dataset)
+  # 検証ワードの単語ベクトルを引いてきて、全単語ベクトルと掛け合わせる
+  # (結果が類似度となる)
   similarity = tf.matmul(valid_embeddings, normalized_embeddings, transpose_b=True)
-    
+  
 # Step 5: 学習開始
 num_steps = 100001
-
-#num_steps = 11 # デバッグですぐに結果を表示する場合はnum_stepsを小さくする
 
 with tf.Session(graph=graph) as session:
   # We must initialize all variables before we use them.
@@ -231,6 +229,7 @@ with tf.Session(graph=graph) as session:
     # 一定ステップ毎に学習内容を確認する
     # Note that this is expensive (~20% slowdown if computed every 500 steps)
     if step % 10000 == 0:
+      # コサイン類似度を計算
       sim = similarity.eval()
       
       for i in xrange(valid_size):
@@ -244,16 +243,15 @@ with tf.Session(graph=graph) as session:
           log_str = "%s %s," % (log_str, close_word)
         print(log_str)
   
-  # 最終的に得られる埋め込みベクトル(を全単語分集めた行列)
+  # 最終的に得られる埋め込みベクトルを全単語分集めた行列
   final_embeddings = normalized_embeddings.eval()
 
 # Step 6: embeddingの可視化
 # 128次元のembeddingベクトルをtSNEという手法で2次元上に圧縮して表示する.
 
-# (元の文章が日本語である対応できる様に、日本語フォントを使っています)
-
 from matplotlib.font_manager import FontProperties
 
+# (元の文章が日本語である場合にも対応できる様に、日本語フォントロード)
 fp = FontProperties(fname=r'./ipaexg.ttf', size=14)
 
 def plot_with_labels(low_dim_embs, labels, fp, filename='tsne.png'):
@@ -274,9 +272,9 @@ def plot_with_labels(low_dim_embs, labels, fp, filename='tsne.png'):
 
   plt.savefig(filename)
 
-
+# tSNEで2次元上に圧縮
 tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
-plot_only = 500
+plot_only = 500 # 500個だけ表示
 low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only,:])
 labels = [reverse_dictionary[i] for i in xrange(plot_only)]
 plot_with_labels(low_dim_embs, labels, fp)
